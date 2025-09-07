@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Runy — Idle</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --card:#fafafa; --line:#e6e6e6; --muted:#555; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#fff; color:#111; margin:0; }
+    header { padding:24px 16px; text-align:center; border-bottom:1px solid var(--line); }
+    h1 { margin:0 0 4px 0; font-size:28px; }
+    .sub { color:var(--muted); font-size:14px; }
+    main { max-width:860px; margin: 20px auto; padding: 0 16px 40px; }
+
+    .statbar { display:flex; gap:16px; flex-wrap:wrap; align-items:center; justify-content:center; margin: 18px 0; }
+    .pill { padding:8px 14px; border:1px solid var(--line); border-radius:999px; background:#fff; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin: 8px 0 18px; }
+    button { font-size:16px; padding:10px 18px; border-radius:10px; border:1px solid var(--line); background:#111; color:#fff; cursor:pointer; }
+    button:disabled { background:#ddd; color:#888; cursor:not-allowed; }
+    .mutelink { background:#f6f6f6; color:#111; }
+
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
+    .card h3 { margin:0 0 8px 0; }
+    .row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; }
+    .badge { padding:3px 8px; border-radius:999px; font-weight:700; font-size:13px; }
+    .common { background:#eef; }
+    .rare { background:#e6ffe6; }
+    .epic { background:#fae6ff; }
+    .legend { background:#fff0d6; }
+    .mythic { background:#ffe6e6; }
+    .small { font-size:13px; color:var(--muted); }
+
+    /* Leaderboard table */
+    .lb-table { width:100%; border-collapse:collapse; }
+    .lb-table th, .lb-table td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; }
+    .lb-table th { font-size:13px; color:var(--muted); font-weight:600; }
+    .lb-table td.rank { width:48px; font-weight:700; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Runy — Idle</h1>
+    <div class="sub">Ustaw nick, pasywnie zdobywaj <strong>Cash</strong> co 0.5 s i zbieraj runy.</div>
+  </header>
+
+  <main>
+    <div class="statbar">
+      <div class="pill mono">Nick: <span id="nick">—</span></div>
+      <div class="pill mono">Cash: <span id="cash">0</span></div>
+      <div class="pill mono">Income/tick: <span id="ptick">1</span> (co 0.5 s)</div>
+      <div class="pill mono small">Offline ticki: <span id="offline">0</span></div>
+      <div class="pill mono">Auto-Rune: <span id="autoState">OFF</span></div>
+    </div>
+
+    <div class="actions">
+      <button id="buyRuneBtn" disabled>Kup Runę (Cost: 10)</button>
+      <button id="toggleAutoBtn" class="mutelink">Auto-Rune: OFF</button>
+      <button id="renameBtn" class="mutelink">Zmień nick</button>
+      <button id="resetBtn" class="mutelink">Reset profilu</button>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Runy</h3>
+        <div class="row"><span class="badge common">Common</span><span class="small">+x0.01</span><span id="cntCommon" class="mono">0</span></div>
+        <div class="row"><span class="badge rare">Rare</span><span class="small">+x0.03</span><span id="cntRare" class="mono">0</span></div>
+        <div class="row"><span class="badge epic">Epic</span><span class="small">+x0.10</span><span id="cntEpic" class="mono">0</span></div>
+        <div class="row"><span class="badge legend">Legendary</span><span class="small">+x0.30</span><span id="cntLegendary" class="mono">0</span></div>
+        <div class="row"><span class="badge mythic">Mythic</span><span class="small">+x1.00</span><span id="cntMythic" class="mono">0</span></div>
+        <hr />
+        <div class="row"><strong>Łączny bonus run</strong><span id="runeBonus" class="mono">+x0.00</span></div>
+        <div class="row"><strong>Ostatnie dropy</strong><span id="lastRune" class="mono">—</span></div>
+      </div>
+
+      <div class="card">
+        <h3>Upgrades</h3>
+        <div class="row">
+          <div>
+            <div><strong>Luck</strong> <span class="small">(faworyzuje rzadsze)</span></div>
+            <div class="small">Poziom: <span id="luckLvl" class="mono">0</span> | Mult: <span id="luckMul" class="mono">1.00×</span></div>
+          </div>
+          <button id="buyLuckBtn">Kup (Cost: <span id="luckCost">10</span>)</button>
+        </div>
+        <div class="row">
+          <div>
+            <div><strong>Bulk</strong> <span class="small">(próby na zakup)</span></div>
+            <div class="small">Poziom: <span id="bulkLvl" class="mono">0</span> | Próby/zakup: <span id="bulkAmt" class="mono">1</span></div>
+          </div>
+          <button id="buyBulkBtn">Kup (Cost: <span id="bulkCost">50</span>)</button>
+        </div>
+      </div>
+
+      <!-- NEW: Leaderboard -->
+      <div class="card">
+        <h3>Leaderboard — Top 10 Cash</h3>
+        <table class="lb-table" aria-label="Leaderboard">
+          <thead>
+            <tr><th>#</th><th>Nick</th><th>Cash</th></tr>
+          </thead>
+          <tbody id="lbBody">
+            <tr><td colspan="3" class="small">Brak danych</td></tr>
+          </tbody>
+        </table>
+        <div class="small" style="margin-top:8px;">Zapisywane lokalnie w tej przeglądarce.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: nick -->
+  <div id="nameModal" class="modal-backdrop" style="display:none;">
+    <div class="modal">
+      <h2>Ustaw swój nick</h2>
+      <p class="small">To będzie nazwa Twojego profilu zapisana w tej przeglądarce.</p>
+      <div class="field">
+        <input id="nameInput" type="text" placeholder="np. Baksamm" maxlength="20" />
+        <button id="saveNameBtn">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /********** CONFIG **********/
+    const TICK_MS = 500;
+    const BASE_INCOME = 1;
+    const RUNE_COST = 10;
+
+    // bazowe wagi 1/N
+    const baseWeights = [
+      { name:'Common',    w: 1/2,   bonus: 0.01 },
+      { name:'Rare',      w: 1/5,   bonus: 0.03 },
+      { name:'Epic',      w: 1/20,  bonus: 0.10 },
+      { name:'Legendary', w: 1/100, bonus: 0.30 },
+      { name:'Mythic',    w: 1/500, bonus: 1.00 },
+    ];
+
+    // Luck: koszt 10 * 2^lvl, mult 1.2^lvl (im wyższy index rzadkości, tym większe wzmocnienie)
+    const LUCK_BASE_COST = 10;
+    const LUCK_COST_GROW = 2;
+    const LUCK_STEP = 1.2;
+
+    // Bulk: koszt 50 * 5^lvl, ilość prób = 1 + lvl
+    const BULK_BASE_COST = 50;
+    const BULK_COST_GROW = 5;
+
+    /********** STORAGE **********/
+    const el = id => document.getElementById(id);
+    const GLOBAL_KEY = 'runeIdleProfile';
+    const LB_KEY = 'runeIdleLeaderboard';
+
+    function defaultProfile(name='') {
+      return {
+        name,
+        cash: 0,
+        runes: { Common:0, Rare:0, Epic:0, Legendary:0, Mythic:0 },
+        luckLevel: 0,
+        bulkLevel: 0,
+        autoRune: false,
+        lastTickAt: Date.now()
+      };
+    }
+    function loadProfile() {
+      try { return JSON.parse(localStorage.getItem(GLOBAL_KEY) || 'null'); } catch { return null; }
+    }
+    function loadLB() {
+      try { return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); } catch { return []; }
+    }
+    function saveLB(list) {
+      localStorage.setItem(LB_KEY, JSON.stringify(list));
+    }
+    function removeFromLB(name) {
+      if (!name) return;
+      const list = loadLB().filter(e => e.name !== name);
+      saveLB(list);
+    }
+    function upsertLB() {
+      if (!profile.name) return;
+      const list = loadLB();
+      const i = list.findIndex(e => e.name === profile.name);
+      if (i >= 0) {
+        // zapisujemy najlepszy wynik (albo bieżący – wybierz co wolisz)
+        list[i].cash = Math.max(list[i].cash, profile.cash);
+        list[i].updated = Date.now();
+      } else {
+        list.push({ name: profile.name, cash: profile.cash, updated: Date.now() });
+      }
+      list.sort((a,b) => b.cash - a.cash);
+      if (list.length > 100) list.length = 100; // proste ograniczenie rozmiaru
+      saveLB(list);
+    }
+    function saveProfile() {
+      localStorage.setItem(GLOBAL_KEY, JSON.stringify(profile));
+      // sync do leaderboardu przy każdej zmianie stanu
+      upsertLB();
+      renderLeaderboard();
+    }
+    let profile = loadProfile() || defaultProfile('');
+
+    /********** UTILS **********/
+    const fmtInt = n => Math.floor(n).toLocaleString();
+    const fmt2 = x => Number(x).toFixed(2).replace(/\.?0+$/,'');
+    const escapeHtml = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    /********** PROBABILITY (z Luck) **********/
+    function luckMultiplier() {
+      return Math.pow(LUCK_STEP, profile.luckLevel);
+    }
+    function makeRarityTable() {
+      const L = luckMultiplier();
+      let sum = 0;
+      const enriched = baseWeights.map((r, i) => {
+        const w = r.w * Math.pow(L, i);
+        sum += w;
+        return { name:r.name, w, bonus:r.bonus };
+      });
+      let acc = 0;
+      return enriched.map(e => {
+        const p = e.w / sum;
+        acc += p;
+        return { name:e.name, p, cum:acc, bonus:e.bonus };
+      });
+    }
+    let rarityTable = makeRarityTable();
+
+    function rollRarityOnce() {
+      const r = Math.random();
+      for (const e of rarityTable) if (r <= e.cum) return e.name;
+      return 'Common';
+    }
+
+    /********** ECONOMY **********/
+    function totalRuneBonus() {
+      const r = profile.runes;
+      return r.Common*0.01 + r.Rare*0.03 + r.Epic*0.10 + r.Legendary*0.30 + r.Mythic*1.00;
+    }
+    function incomePerTick() {
+      return BASE_INCOME * (1 + totalRuneBonus());
+    }
+
+    function buyRunesOnce() {
+      if (profile.cash < RUNE_COST) return 0;
+      const bulkMax = 1 + profile.bulkLevel;
+      const affordable = Math.min(bulkMax, Math.floor(profile.cash / RUNE_COST));
+      if (affordable <= 0) return 0;
+
+      profile.cash -= affordable * RUNE_COST;
+
+      let drops = [];
+      for (let i=0;i<affordable;i++){
+        const got = rollRarityOnce();
+        profile.runes[got] += 1;
+        drops.push(got);
+      }
+      profile.lastTickAt = Date.now();
+      saveProfile();
+      updateUI(drops);
+      return affordable;
+    }
+
+    /********** UI **********/
+    const $nick = el('nick'), $cash = el('cash'), $ptick = el('ptick'), $offline = el('offline');
+    const $buyRune = el('buyRuneBtn'), $toggleAuto = el('toggleAutoBtn'), $autoState = el('autoState');
+    const $rename = el('renameBtn'), $reset = el('resetBtn');
+    const $cnt = {
+      Common: el('cntCommon'),
+      Rare: el('cntRare'),
+      Epic: el('cntEpic'),
+      Legendary: el('cntLegendary'),
+      Mythic: el('cntMythic'),
+    };
+    const $runeBonus = el('runeBonus'), $lastRune = el('lastRune');
+    const $luckLvl = el('luckLvl'), $luckMul = el('luckMul'), $luckCost = el('luckCost'), $buyLuck = el('buyLuckBtn');
+    const $bulkLvl = el('bulkLvl'), $bulkAmt = el('bulkAmt'), $bulkCost = el('bulkCost'), $buyBulk = el('buyBulkBtn');
+
+    const $modal = el('nameModal'), $nameInput = el('nameInput'), $saveName = el('saveNameBtn');
+    const $lbBody = el('lbBody');
+
+    function luckCost(level = profile.luckLevel) { return LUCK_BASE_COST * Math.pow(LUCK_COST_GROW, level); }
+    function bulkCost(level = profile.bulkLevel) { return BULK_BASE_COST * Math.pow(BULK_COST_GROW, level); }
+
+    function renderLeaderboard() {
+      const top = loadLB().slice().sort((a,b)=>b.cash-a.cash).slice(0,10);
+      if (!top.length) {
+        $lbBody.innerHTML = '<tr><td colspan="3" class="small">Brak danych</td></tr>';
+        return;
+      }
+      $lbBody.innerHTML = top.map((e,i)=>(
+        `<tr>
+           <td class="rank">${i+1}</td>
+           <td>${escapeHtml(e.name)}</td>
+           <td class="mono">${fmtInt(e.cash)}</td>
+         </tr>`
+      )).join('');
+    }
+
+    function updateUI(lastDrops = null, offlineTicks = 0) {
+      $nick.textContent = profile.name || '—';
+      $cash.textContent = fmtInt(profile.cash);
+      $ptick.textContent = incomePerTick().toFixed(2);
+      $offline.textContent = offlineTicks;
+
+      for (const k in $cnt) $cnt[k].textContent = profile.runes[k];
+      $runeBonus.textContent = `+x${fmt2(totalRuneBonus())}`;
+      $lastRune.textContent = lastDrops && lastDrops.length ? lastDrops.join(', ') : '—';
+
+      $autoState.textContent = profile.autoRune ? 'ON' : 'OFF';
+      $toggleAuto.textContent = `Auto-Rune: ${profile.autoRune ? 'ON' : 'OFF'}`;
+
+      $luckLvl.textContent = profile.luckLevel;
+      $luckMul.textContent = `${fmt2(luckMultiplier())}×`;
+      $luckCost.textContent = fmtInt(luckCost());
+      $buyLuck.disabled = profile.cash < luckCost();
+
+      $bulkLvl.textContent = profile.bulkLevel;
+      $bulkAmt.textContent = 1 + profile.bulkLevel;
+      $bulkCost.textContent = fmtInt(bulkCost());
+      $buyBulk.disabled = profile.cash < bulkCost();
+
+      $buyRune.disabled = profile.cash < RUNE_COST || !profile.name;
+
+      // odśwież leaderboard przy każdym odmalowaniu UI
+      renderLeaderboard();
+    }
+
+    /********** MODAL (nick) **********/
+    function showNameModal(prefill='') {
+      $nameInput.value = prefill;
+      $modal.style.display = 'flex';
+      $nameInput.focus();
+    }
+    function hideNameModal() { $modal.style.display = 'none'; }
+
+    $saveName.addEventListener('click', () => {
+      const v = $nameInput.value.trim().slice(0,20);
+      if (!v) return;
+      const prev = profile.name;
+      profile.name = v;
+      profile.lastTickAt = Date.now();
+      if (prev && prev !== v) removeFromLB(prev); // przenieś wynik pod nowy nick
+      saveProfile();
+      hideNameModal();
+      updateUI();
+    });
+    $nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') $saveName.click(); });
+
+    $rename.addEventListener('click', () => showNameModal(profile.name));
+    $reset.addEventListener('click', () => {
+      if (!confirm('Na pewno zresetować profil?')) return;
+      const prev = profile.name;
+      profile = defaultProfile('');
+      if (prev) removeFromLB(prev);
+      saveProfile();
+      showNameModal('');
+      updateUI();
+    });
+
+    /********** ACTIONS **********/
+    $buyRune.addEventListener('click', () => { buyRunesOnce(); });
+    $toggleAuto.addEventListener('click', () => { profile.autoRune = !profile.autoRune; saveProfile(); updateUI(); });
+
+    $buyLuck.addEventListener('click', () => {
+      const cost = luckCost();
+      if (profile.cash < cost) return;
+      profile.cash -= cost;
+      profile.luckLevel += 1;
+      rarityTable = makeRarityTable();
+      saveProfile();
+      updateUI();
+    });
+
+    $buyBulk.addEventListener('click', () => {
+      const cost = bulkCost();
+      if (profile.cash < cost) return;
+      profile.cash -= cost;
+      profile.bulkLevel += 1;
+      saveProfile();
+      updateUI();
+    });
+
+    /********** LOOP & OFFLINE **********/
+    function applyOfflineGains(now=Date.now()) {
+      const elapsed = Math.max(0, now - (profile.lastTickAt || now));
+      const ticks = Math.floor(elapsed / TICK_MS);
+      if (ticks > 0) {
+        profile.cash += ticks * incomePerTick();
+        profile.lastTickAt = now - (elapsed % TICK_MS);
+        saveProfile();
+      }
+      return ticks;
+    }
+
+    let accMs = 0, lastNow = performance.now();
+    function loop(now) {
+      const dt = now - lastNow; lastNow = now;
+      accMs += dt;
+
+      while (accMs >= TICK_MS) {
+        accMs -= TICK_MS;
+        profile.cash += incomePerTick();
+        if (profile.autoRune && profile.name) buyRunesOnce();
+        profile.lastTickAt = Date.now();
+      }
+
+      // oszczędny autosave
+      if (now % 1500 < 16) saveProfile();
+
+      updateUI(null);
+      requestAnimationFrame(loop);
+    }
+
+    (function init(){
+      if (!profile.name) showNameModal(''); else hideNameModal();
+      const offlineTicks = applyOfflineGains();
+      rarityTable = makeRarityTable();
+      renderLeaderboard();
+      updateUI(null, offlineTicks);
+      requestAnimationFrame(ts => { lastNow = ts; requestAnimationFrame(loop); });
+
+      // nasłuch zmian z innych kart (live refresh tabeli)
+      window.addEventListener('storage', e => {
+        if (e.key === LB_KEY) renderLeaderboard();
+      });
+    })();
+  </script>
+</body>
+</html>
