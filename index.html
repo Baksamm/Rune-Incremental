@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Runy — Idle</title>
+  <title>Runes — Idle</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root { --card:#fafafa; --line:#e6e6e6; --muted:#555; }
@@ -16,6 +16,7 @@
     .statbar { display:flex; gap:16px; flex-wrap:wrap; align-items:center; justify-content:center; margin: 18px 0; }
     .pill { padding:8px 14px; border:1px solid var(--line); border-radius:999px; background:#fff; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .small { font-size:13px; color:var(--muted); }
 
     .actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin: 8px 0 18px; }
     button { font-size:16px; padding:10px 18px; border-radius:10px; border:1px solid var(--line); background:#111; color:#fff; cursor:pointer; }
@@ -32,103 +33,136 @@
     .epic { background:#fae6ff; }
     .legend { background:#fff0d6; }
     .mythic { background:#ffe6e6; }
-    .small { font-size:13px; color:var(--muted); }
 
     /* Leaderboard table */
     .lb-table { width:100%; border-collapse:collapse; }
     .lb-table th, .lb-table td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; }
     .lb-table th { font-size:13px; color:var(--muted); font-weight:600; }
     .lb-table td.rank { width:48px; font-weight:700; }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.25);
+      display:flex; align-items:center; justify-content:center; padding:16px;
+    }
+    .modal {
+      background:#fff; width:100%; max-width:420px; border-radius:14px; padding:16px;
+      border:1px solid var(--line);
+    }
+    .modal h2 { margin: 0 0 8px 0; }
+    .field { display:flex; gap:8px; margin-top:10px; }
+    .field input {
+      flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:16px;
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Runy — Idle</h1>
-    <div class="sub">Ustaw nick, pasywnie zdobywaj <strong>Cash</strong> co 0.5 s i zbieraj runy.</div>
+    <h1>Runes — Idle</h1>
+    <div class="sub">Set a nickname, passively earn <strong>Cash</strong> every 0.5s, and roll for runes.</div>
   </header>
 
   <main>
     <div class="statbar">
-      <div class="pill mono">Nick: <span id="nick">—</span></div>
+      <div class="pill mono">Name: <span id="nick">—</span></div>
       <div class="pill mono">Cash: <span id="cash">0</span></div>
-      <div class="pill mono">Income/tick: <span id="ptick">1</span> (co 0.5 s)</div>
-      <div class="pill mono small">Offline ticki: <span id="offline">0</span></div>
+      <div class="pill mono">Income/tick: <span id="ptick">1</span> (every 0.5s)</div>
+      <div class="pill mono small">Offline ticks: <span id="offline">0</span></div>
       <div class="pill mono">Auto-Rune: <span id="autoState">OFF</span></div>
     </div>
 
     <div class="actions">
-      <button id="buyRuneBtn" disabled>Kup Runę (Cost: 10)</button>
+      <button id="buyRuneBtn" disabled>Buy Rune (Cost: 10)</button>
       <button id="toggleAutoBtn" class="mutelink">Auto-Rune: OFF</button>
-      <button id="renameBtn" class="mutelink">Zmień nick</button>
-      <button id="resetBtn" class="mutelink">Reset profilu</button>
+      <button id="renameBtn" class="mutelink">Change name</button>
+      <button id="resetBtn" class="mutelink">Reset profile</button>
     </div>
 
     <div class="grid">
       <div class="card">
-        <h3>Runy</h3>
+        <h3>Runes</h3>
         <div class="row"><span class="badge common">Common</span><span class="small">+x0.01</span><span id="cntCommon" class="mono">0</span></div>
         <div class="row"><span class="badge rare">Rare</span><span class="small">+x0.03</span><span id="cntRare" class="mono">0</span></div>
         <div class="row"><span class="badge epic">Epic</span><span class="small">+x0.10</span><span id="cntEpic" class="mono">0</span></div>
         <div class="row"><span class="badge legend">Legendary</span><span class="small">+x0.30</span><span id="cntLegendary" class="mono">0</span></div>
         <div class="row"><span class="badge mythic">Mythic</span><span class="small">+x1.00</span><span id="cntMythic" class="mono">0</span></div>
         <hr />
-        <div class="row"><strong>Łączny bonus run</strong><span id="runeBonus" class="mono">+x0.00</span></div>
-        <div class="row"><strong>Ostatnie dropy</strong><span id="lastRune" class="mono">—</span></div>
+        <div class="row"><strong>Total rune bonus</strong><span id="runeBonus" class="mono">+x0.00</span></div>
+        <div class="row"><strong>Last drops</strong><span id="lastRune" class="mono">—</span></div>
       </div>
 
       <div class="card">
         <h3>Upgrades</h3>
         <div class="row">
           <div>
-            <div><strong>Luck</strong> <span class="small">(faworyzuje rzadsze)</span></div>
-            <div class="small">Poziom: <span id="luckLvl" class="mono">0</span> | Mult: <span id="luckMul" class="mono">1.00×</span></div>
+            <div><strong>Luck</strong> <span class="small">(bias towards rarer)</span></div>
+            <div class="small">Level: <span id="luckLvl" class="mono">0</span> | Mult: <span id="luckMul" class="mono">1.00×</span></div>
           </div>
-          <button id="buyLuckBtn">Kup (Cost: <span id="luckCost">10</span>)</button>
+          <button id="buyLuckBtn">Buy (Cost: <span id="luckCost">10</span>)</button>
         </div>
         <div class="row">
           <div>
-            <div><strong>Bulk</strong> <span class="small">(próby na zakup)</span></div>
-            <div class="small">Poziom: <span id="bulkLvl" class="mono">0</span> | Próby/zakup: <span id="bulkAmt" class="mono">1</span></div>
+            <div><strong>Bulk</strong> <span class="small">(rolls per purchase)</span></div>
+            <div class="small">Level: <span id="bulkLvl" class="mono">0</span> | Rolls/purchase: <span id="bulkAmt" class="mono">1</span></div>
           </div>
-          <button id="buyBulkBtn">Kup (Cost: <span id="bulkCost">50</span>)</button>
+          <button id="buyBulkBtn">Buy (Cost: <span id="bulkCost">50</span>)</button>
         </div>
       </div>
 
-      <!-- NEW: Leaderboard -->
       <div class="card">
-        <h3>Leaderboard — Top 10 Cash</h3>
+        <h3>Leaderboard — Top 10 Cash (Global)</h3>
         <table class="lb-table" aria-label="Leaderboard">
           <thead>
-            <tr><th>#</th><th>Nick</th><th>Cash</th></tr>
+            <tr><th>#</th><th>Name</th><th>Cash</th></tr>
           </thead>
-          <tbody id="lbBody">
-            <tr><td colspan="3" class="small">Brak danych</td></tr>
+        <tbody id="lbBody">
+            <tr><td colspan="3" class="small">Loading…</td></tr>
           </tbody>
         </table>
-        <div class="small" style="margin-top:8px;">Zapisywane lokalnie w tej przeglądarce.</div>
+        <div class="small" style="margin-top:8px;">Stored globally via Firebase.</div>
       </div>
     </div>
   </main>
 
-  <!-- Modal: nick -->
+  <!-- Name modal -->
   <div id="nameModal" class="modal-backdrop" style="display:none;">
     <div class="modal">
-      <h2>Ustaw swój nick</h2>
-      <p class="small">To będzie nazwa Twojego profilu zapisana w tej przeglądarce.</p>
+      <h2>Choose your nickname</h2>
+      <p class="small">This will be saved locally and used on the global leaderboard.</p>
       <div class="field">
-        <input id="nameInput" type="text" placeholder="np. Baksamm" maxlength="20" />
+        <input id="nameInput" type="text" placeholder="e.g. Baksamm" maxlength="20" />
         <button id="saveNameBtn">OK</button>
       </div>
     </div>
   </div>
 
-  <script>
-    /********** CONFIG **********/
+  <!-- GAME + FIREBASE (module) -->
+  <script type="module">
+    /********** FIREBASE BOOTSTRAP **********/
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, orderBy, limit, getDocs, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // TODO: Replace with your Firebase project config
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      // appId, etc. optional
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    /********** GAME CONFIG **********/
     const TICK_MS = 500;
     const BASE_INCOME = 1;
     const RUNE_COST = 10;
 
-    // bazowe wagi 1/N
+    // Base rarity weights (probability ~ w / sum(w)), Luck multiplies higher indices more.
     const baseWeights = [
       { name:'Common',    w: 1/2,   bonus: 0.01 },
       { name:'Rare',      w: 1/5,   bonus: 0.03 },
@@ -137,19 +171,18 @@
       { name:'Mythic',    w: 1/500, bonus: 1.00 },
     ];
 
-    // Luck: koszt 10 * 2^lvl, mult 1.2^lvl (im wyższy index rzadkości, tym większe wzmocnienie)
+    // Luck: cost = 10 * 2^lvl, weight multiplier per rarity index = 1.2^lvl
     const LUCK_BASE_COST = 10;
     const LUCK_COST_GROW = 2;
     const LUCK_STEP = 1.2;
 
-    // Bulk: koszt 50 * 5^lvl, ilość prób = 1 + lvl
+    // Bulk: cost = 50 * 5^lvl, attempts = 1 + lvl
     const BULK_BASE_COST = 50;
     const BULK_COST_GROW = 5;
 
-    /********** STORAGE **********/
+    /********** STORAGE (local for gameplay state) **********/
     const el = id => document.getElementById(id);
     const GLOBAL_KEY = 'runeIdleProfile';
-    const LB_KEY = 'runeIdleLeaderboard';
 
     function defaultProfile(name='') {
       return {
@@ -165,37 +198,10 @@
     function loadProfile() {
       try { return JSON.parse(localStorage.getItem(GLOBAL_KEY) || 'null'); } catch { return null; }
     }
-    function loadLB() {
-      try { return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); } catch { return []; }
-    }
-    function saveLB(list) {
-      localStorage.setItem(LB_KEY, JSON.stringify(list));
-    }
-    function removeFromLB(name) {
-      if (!name) return;
-      const list = loadLB().filter(e => e.name !== name);
-      saveLB(list);
-    }
-    function upsertLB() {
-      if (!profile.name) return;
-      const list = loadLB();
-      const i = list.findIndex(e => e.name === profile.name);
-      if (i >= 0) {
-        // zapisujemy najlepszy wynik (albo bieżący – wybierz co wolisz)
-        list[i].cash = Math.max(list[i].cash, profile.cash);
-        list[i].updated = Date.now();
-      } else {
-        list.push({ name: profile.name, cash: profile.cash, updated: Date.now() });
-      }
-      list.sort((a,b) => b.cash - a.cash);
-      if (list.length > 100) list.length = 100; // proste ograniczenie rozmiaru
-      saveLB(list);
-    }
     function saveProfile() {
       localStorage.setItem(GLOBAL_KEY, JSON.stringify(profile));
-      // sync do leaderboardu przy każdej zmianie stanu
-      upsertLB();
-      renderLeaderboard();
+      // also try to sync leaderboard (debounced by animation loop cadence)
+      upsertGlobalLeaderboard().catch(()=>{});
     }
     let profile = loadProfile() || defaultProfile('');
 
@@ -204,7 +210,7 @@
     const fmt2 = x => Number(x).toFixed(2).replace(/\.?0+$/,'');
     const escapeHtml = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-    /********** PROBABILITY (z Luck) **********/
+    /********** PROBABILITY (with Luck) **********/
     function luckMultiplier() {
       return Math.pow(LUCK_STEP, profile.luckLevel);
     }
@@ -248,7 +254,7 @@
 
       profile.cash -= affordable * RUNE_COST;
 
-      let drops = [];
+      const drops = [];
       for (let i=0;i<affordable;i++){
         const got = rollRarityOnce();
         profile.runes[got] += 1;
@@ -260,7 +266,7 @@
       return affordable;
     }
 
-    /********** UI **********/
+    /********** UI HOOKS **********/
     const $nick = el('nick'), $cash = el('cash'), $ptick = el('ptick'), $offline = el('offline');
     const $buyRune = el('buyRuneBtn'), $toggleAuto = el('toggleAutoBtn'), $autoState = el('autoState');
     const $rename = el('renameBtn'), $reset = el('resetBtn');
@@ -280,21 +286,6 @@
 
     function luckCost(level = profile.luckLevel) { return LUCK_BASE_COST * Math.pow(LUCK_COST_GROW, level); }
     function bulkCost(level = profile.bulkLevel) { return BULK_BASE_COST * Math.pow(BULK_COST_GROW, level); }
-
-    function renderLeaderboard() {
-      const top = loadLB().slice().sort((a,b)=>b.cash-a.cash).slice(0,10);
-      if (!top.length) {
-        $lbBody.innerHTML = '<tr><td colspan="3" class="small">Brak danych</td></tr>';
-        return;
-      }
-      $lbBody.innerHTML = top.map((e,i)=>(
-        `<tr>
-           <td class="rank">${i+1}</td>
-           <td>${escapeHtml(e.name)}</td>
-           <td class="mono">${fmtInt(e.cash)}</td>
-         </tr>`
-      )).join('');
-    }
 
     function updateUI(lastDrops = null, offlineTicks = 0) {
       $nick.textContent = profile.name || '—';
@@ -320,12 +311,9 @@
       $buyBulk.disabled = profile.cash < bulkCost();
 
       $buyRune.disabled = profile.cash < RUNE_COST || !profile.name;
-
-      // odśwież leaderboard przy każdym odmalowaniu UI
-      renderLeaderboard();
     }
 
-    /********** MODAL (nick) **********/
+    /********** MODAL (name) **********/
     function showNameModal(prefill='') {
       $nameInput.value = prefill;
       $modal.style.display = 'flex';
@@ -333,28 +321,30 @@
     }
     function hideNameModal() { $modal.style.display = 'none'; }
 
-    $saveName.addEventListener('click', () => {
+    $saveName.addEventListener('click', async () => {
       const v = $nameInput.value.trim().slice(0,20);
       if (!v) return;
-      const prev = profile.name;
       profile.name = v;
       profile.lastTickAt = Date.now();
-      if (prev && prev !== v) removeFromLB(prev); // przenieś wynik pod nowy nick
       saveProfile();
       hideNameModal();
       updateUI();
+      // write name immediately to user doc so LB shows right away
+      await ensureUserDoc();
+      await upsertGlobalLeaderboard();
+      await renderLeaderboard();
     });
     $nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') $saveName.click(); });
 
     $rename.addEventListener('click', () => showNameModal(profile.name));
-    $reset.addEventListener('click', () => {
-      if (!confirm('Na pewno zresetować profil?')) return;
-      const prev = profile.name;
+    $reset.addEventListener('click', async () => {
+      if (!confirm('Reset your local profile? This does not delete leaderboard entry.')) return;
       profile = defaultProfile('');
-      if (prev) removeFromLB(prev);
       saveProfile();
       showNameModal('');
       updateUI();
+      // keep leaderboard doc; it will only update when you earn again
+      await renderLeaderboard();
     });
 
     /********** ACTIONS **********/
@@ -393,37 +383,180 @@
     }
 
     let accMs = 0, lastNow = performance.now();
-    function loop(now) {
+    async function loop(now) {
       const dt = now - lastNow; lastNow = now;
       accMs += dt;
 
+      let progressed = false;
       while (accMs >= TICK_MS) {
         accMs -= TICK_MS;
         profile.cash += incomePerTick();
         if (profile.autoRune && profile.name) buyRunesOnce();
         profile.lastTickAt = Date.now();
+        progressed = true;
       }
 
-      // oszczędny autosave
-      if (now % 1500 < 16) saveProfile();
+      // lightweight autosync every ~1.5s
+      if (now % 1500 < 16 && progressed) {
+        saveProfile();               // saves local + attempts LB upsert
+        await upsertGlobalLeaderboard().catch(()=>{});
+      }
 
       updateUI(null);
       requestAnimationFrame(loop);
     }
 
-    (function init(){
-      if (!profile.name) showNameModal(''); else hideNameModal();
-      const offlineTicks = applyOfflineGains();
-      rarityTable = makeRarityTable();
-      renderLeaderboard();
-      updateUI(null, offlineTicks);
-      requestAnimationFrame(ts => { lastNow = ts; requestAnimationFrame(loop); });
+    /********** GLOBAL LEADERBOARD (Firestore) **********/
+    // Collection layout:
+    // - users/<uid> { name, bestCash, updated }
+    // - leaderboard/<uid> { name, cash, updated }  (duplicate for simpler security/query; optional)
+    //
+    // We’ll only keep users/<uid> and query ordered by bestCash from there.
 
-      // nasłuch zmian z innych kart (live refresh tabeli)
-      window.addEventListener('storage', e => {
-        if (e.key === LB_KEY) renderLeaderboard();
+    const usersCol = collection(db, 'users');
+
+    async function ensureUserDoc() {
+      const user = auth.currentUser;
+      if (!user) return;
+      const ref = doc(usersCol, user.uid);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          name: profile.name || 'Anonymous',
+          bestCash: Math.floor(profile.cash) || 0,
+          updated: serverTimestamp()
+        });
+      } else {
+        // keep name up to date (on rename)
+        const cur = snap.data() || {};
+        if ((profile.name && cur.name !== profile.name)) {
+          await updateDoc(ref, { name: profile.name, updated: serverTimestamp() });
+        }
+      }
+    }
+
+    async function upsertGlobalLeaderboard() {
+      const user = auth.currentUser;
+      if (!user) return;
+      const ref = doc(usersCol, user.uid);
+      const snap = await getDoc(ref);
+      const currentBest = snap.exists() ? (snap.data().bestCash || 0) : 0;
+      const nowCash = Math.floor(profile.cash);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          name: profile.name || 'Anonymous',
+          bestCash: nowCash,
+          updated: serverTimestamp()
+        });
+      } else if (nowCash > currentBest || (profile.name && snap.data().name !== profile.name)) {
+        await updateDoc(ref, {
+          name: profile.name || 'Anonymous',
+          bestCash: Math.max(nowCash, currentBest),
+          updated: serverTimestamp()
+        });
+      }
+    }
+
+    async function renderLeaderboard() {
+      const $lbBody = document.getElementById('lbBody');
+      $lbBody.innerHTML = `<tr><td colspan="3" class="small">Loading…</td></tr>`;
+      try {
+        const qTop = query(usersCol, orderBy('bestCash', 'desc'), limit(10));
+        const res = await getDocs(qTop);
+        const rows = [];
+        let i = 1;
+        res.forEach(docSnap => {
+          const d = docSnap.data();
+          const name = (d && d.name) ? d.name : 'Anonymous';
+          const cash = (d && d.bestCash) ? d.bestCash : 0;
+          rows.push(
+            `<tr>
+              <td class="rank">${i++}</td>
+              <td>${escapeHtml(String(name))}</td>
+              <td class="mono">${fmtInt(cash)}</td>
+            </tr>`
+          );
+        });
+        if (rows.length === 0) {
+          $lbBody.innerHTML = `<tr><td colspan="3" class="small">No data yet</td></tr>`;
+        } else {
+          $lbBody.innerHTML = rows.join('');
+        }
+      } catch (e) {
+        console.error(e);
+        $lbBody.innerHTML = `<tr><td colspan="3" class="small">Failed to load leaderboard</td></tr>`;
+      }
+    }
+
+    /********** INIT **********/
+    let rarityReady = false;
+
+    (async function init(){
+      // Auth first
+      await signInAnonymously(auth).catch(err => {
+        console.error('Anonymous auth failed:', err);
+        alert('Firebase auth failed. Check your firebaseConfig & internet.');
       });
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) return;
+        // local name prompt if empty
+        if (!profile.name) showNameModal('');
+        else hideNameModal();
+
+        const offlineTicks = applyOfflineGains();
+        rarityTable = makeRarityTable();
+        updateUI(null, offlineTicks);
+
+        await ensureUserDoc();
+        await upsertGlobalLeaderboard();
+        await renderLeaderboard();
+
+        // Start loop
+        requestAnimationFrame(ts => { lastNow = ts; requestAnimationFrame(loop); });
+      });
+
+      // Refresh LB every 10 seconds to see others progress
+      setInterval(renderLeaderboard, 10000);
     })();
+
+    // Live UI handlers are already attached above
   </script>
+
+  <!--
+  ========================= FIRESTORE SECURITY RULES =========================
+  Paste this into Firestore → Rules (replace PROJECT_ID accordingly if needed).
+  These rules:
+    - allow anyone to read top scores,
+    - allow each authenticated (anonymous) user to write only their own document,
+    - only allow increasing bestCash (no cheating down/up weirdness),
+    - allow updating name.
+  ============================================================================
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      match /users/{userId} {
+        allow read: if true; // public leaderboard
+
+        allow create: if request.auth != null && request.auth.uid == userId
+                      && request.resource.data.keys().hasOnly(['name','bestCash','updated'])
+                      && request.resource.data.bestCash is int
+                      && request.resource.data.bestCash >= 0
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() <= 20;
+
+        allow update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['name','bestCash','updated'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 20
+          // only allow bestCash to stay same or increase
+          && request.resource.data.bestCash is int
+          && request.resource.data.bestCash >= resource.data.bestCash;
+
+        allow delete: if false; // no deletes via client
+      }
+    }
+  }
+  ============================================================================ -->
 </body>
 </html>
